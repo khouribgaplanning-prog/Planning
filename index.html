@@ -500,7 +500,7 @@ html[dir="rtl"] .dial .big, html[dir="rtl"] .dial svg { direction: ltr; }
 .pv-t { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; min-width: 460px; }
 .pv-t th { text-align: end; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 800; padding: 6px 6px; border-bottom: 1px solid var(--line); }
 .pv-t th:first-child, .pv-t td:first-child { text-align: start; }
-.pv-t td { text-align: end; padding: 9px 6px; border-bottom: 1px solid var(--line); }
+.pv-t td { text-align: end; padding: 9px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .pv-t td:first-child b { display: block; font-size: 13px; }
 .pv-t td:first-child small { color: var(--muted); font-size: 11px; }
 .pv-t tr.today td { background: rgba(255,199,44,.1); }
@@ -925,6 +925,14 @@ function viewPrev() {
   const mCA = sum(days, "ca"), mN1 = sum(days, "n1"), mTC = sum(days, "tc");
   const weeks = []; let cur = null;
   days.forEach(x => { if (!cur || x.dow === 1) { cur = []; weeks.push(cur); } cur.push(x); });
+  const ws = (typeof W !== "undefined" && W && W.start) ? W.start : null;
+  let noFc = false;
+  if (ws && state.pvwFor !== ws) {
+    const [y, m, d] = ws.split("-").map(Number), t0 = Date.UTC(y, m - 1, d);
+    const i = weeks.findIndex(w => w.some(x => x.t >= t0 && x.t < t0 + 7 * 86400000));
+    state.pvwFor = ws;
+    if (i >= 0) state.pvw = i; else { noFc = true; if (state.pvw == null) state.pvw = Math.max(0, weeks.findIndex(w => w.some(x => x.t === todayT))); }
+  }
   if (state.pvw == null) { const i = weeks.findIndex(w => w.some(x => x.t === todayT)); state.pvw = i >= 0 ? i : 0; }
   const W2 = weeks[Math.min(state.pvw, weeks.length - 1)];
   const wCA = sum(W2, "ca"), wN1 = sum(W2, "n1"), wTC = sum(W2, "tc"), wTN = sum(W2, "tn1");
@@ -938,11 +946,13 @@ function viewPrev() {
   return `<section class="rise">
     <div class="label" style="margin-bottom:10px">${L("Prévisions de ventes · novembre 2026", "توقعات المبيعات · نونبر 2026")}</div>
     <div class="pv-top">
-      <div class="hl"><span>${td ? L("Aujourd'hui", "اليوم") : L("Mois", "الشهر")}</span><b>${fmt(td ? td.ca : mCA)} DH</b><small>${td ? `${fmt(td.tc)} ${L("tickets", "تذكرة")} · ` : ""}${ev(pct(td ? td.ca : mCA, td ? td.n1 : mN1))} ${L("vs N-1", "مقارنة بـ N-1")}</small></div>
-      <div><span>${L("Mois de novembre", "شهر نونبر")}</span><b>${fmt(mCA)} DH</b><small>${ev(pct(mCA, mN1))} · N-1 ${fmt(mN1)}</small></div>
-      <div><span>${L("Tickets du mois", "تذاكر الشهر")}</span><b>${fmt(mTC)}</b><small>${L("Ticket moyen", "متوسط التذكرة")} ${fmt(mCA / mTC)} DH</small></div>
-      <div><span>${L("Meilleur jour", "أفضل يوم")}</span>${(() => { const b = days.reduce((a, x) => x.ca > a.ca ? x : a); return `<b>${fmt(b.ca)} DH</b><small>${DOW[b.dow]} ${b.d} nov. · ${fmt(b.tc)} ${L("tickets", "تذكرة")}</small>`; })()}</div>
+      <div class="hl"><span>${L("Semaine du", "أسبوع")} ${lab(W2)}</span><b>${fmt(wCA)} DH</b><small>${ev(pct(wCA, wN1))} ${L("vs N-1", "مقارنة بـ N-1")} · N-1 ${fmt(wN1)}</small></div>
+      <div><span>${L("Tickets de la semaine", "تذاكر الأسبوع")}</span><b>${fmt(wTC)}</b><small>${L("Ticket moyen", "متوسط التذكرة")} ${fmt(wCA / wTC)} DH</small></div>
+      <div><span>${L("Meilleur jour", "أفضل يوم")}</span>${(() => { const bd = W2.reduce((a, x) => x.ca > a.ca ? x : a); return `<b>${fmt(bd.ca)} DH</b><small>${DOW[bd.dow]} ${bd.d} nov. · ${fmt(bd.tc)} ${L("tickets", "تذكرة")}</small>`; })()}</div>
+      <div><span>${L("Mois de novembre", "شهر نونبر")}</span><b>${fmt(mCA)} DH</b><small>${ev(pct(mCA, mN1))} · ${fmt(mTC)} ${L("tickets", "تذكرة")}</small></div>
     </div>
+    ${noFc ? `<p class="pv-note" style="margin-top:10px">${L("Pas de prévision pour la semaine de planning choisie en haut. Choisis une semaine de novembre ci-dessous.", "لا توجد توقعات لهذا الأسبوع.")}</p>` : ""}
+    ${td ? `<p class="pv-note" style="margin-top:10px">${L("Aujourd'hui", "اليوم")} : <b style="color:var(--ink)">${fmt(td.ca)} DH</b> ${L("prévus", "متوقع")} · ${fmt(td.tc)} ${L("tickets", "تذكرة")}</p>` : ""}
     <div class="pv-wk" role="group" aria-label="${L("Choisir la semaine", "اختر الأسبوع")}">${chips}</div>
     <div class="card pv-card">
       <div class="pv-sum"><span><b>${fmt(wCA)} DH</b> <small>${L("prévus", "متوقع")}</small></span><small>${ev(pct(wCA, wN1))} vs N-1 · ${fmt(wTC)} ${L("tickets", "تذكرة")} (${ev(pct(wTC, wTN))})</small></div>
